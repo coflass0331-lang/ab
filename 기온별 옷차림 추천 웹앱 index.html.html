@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#4f7cff">
+<title>기온별 옷차림 추천</title>
+<script>
+/* 첫 화면 깜빡임 방지: 저장된 모드 또는 기기 설정을 먼저 적용 */
+(function(){try{var m=localStorage.getItem('mode');if(!m)m=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.mode=m;}catch(e){}})();
+</script>
+<style>
+  :root{
+    --bg:#f2f5fb; --card:#ffffff; --text:#1d2433; --sub:#6b7488; --line:#e3e8f2;
+    --primary:#4f7cff; --primary-soft:#e8eeff; --warn:#ff7a45; --radius:20px;
+    --shadow:0 6px 24px rgba(40,60,110,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.55; min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  button,select,input{font:inherit;color:inherit}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+
+  /* Header */
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
+  .theme-btn{flex:0 0 auto;width:44px;padding:0;font-size:1.25rem;line-height:1;border-radius:50%}
+  header h1{font-size:1.5rem;letter-spacing:-.02em}
+  header p{color:var(--sub);font-size:.95rem}
+
+  /* Controls */
+  .panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+  .controls{display:grid;gap:14px;margin-bottom:16px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .label{font-size:.82rem;font-weight:700;color:var(--sub);margin-bottom:6px;display:block}
+  select,input[type=date]{
+    border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;min-height:44px;
+  }
+  .btn{
+    border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 14px;min-height:44px;
+    cursor:pointer;font-weight:600;
+  }
+  .btn:hover{background:var(--primary-soft)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:10px 14px;min-height:44px;cursor:pointer;font-weight:600;color:var(--sub)}
+  .seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+
+  /* Date strip */
+  .dates{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .chip{
+    flex:0 0 auto;scroll-snap-align:start;min-width:74px;border:1px solid var(--line);background:#fff;
+    border-radius:16px;padding:10px 8px;text-align:center;cursor:pointer;transition:.15s;
+  }
+  .chip .d{font-size:.78rem;color:var(--sub);font-weight:600}
+  .chip .e{font-size:1.4rem;line-height:1.3}
+  .chip .t{font-size:.8rem;font-weight:700}
+  .chip .t small{color:var(--sub);font-weight:500}
+  .chip[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff;transform:translateY(-2px);box-shadow:0 6px 14px rgba(79,124,255,.35)}
+  .chip[aria-pressed="true"] .d,.chip[aria-pressed="true"] .t small{color:#e6edff}
+
+  .banner{background:#fff4e5;border:1px solid #ffd9a8;color:#8a5200;border-radius:12px;padding:10px 14px;font-size:.88rem;margin-bottom:14px}
+  .hidden{display:none!important}
+
+  /* Layout */
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:820px){
+    .grid{grid-template-columns:5fr 7fr}
+    .span2{grid-column:1/-1}
+    .wrap{padding:32px 24px 64px}
+    header h1{font-size:1.9rem}
+  }
+
+  /* 1. Weather card */
+  .weather{color:#fff;position:relative;overflow:hidden;background:linear-gradient(135deg,#5b8def,#7cc4ff)}
+  .weather[data-theme="cloud"]{background:linear-gradient(135deg,#7b8aa6,#aab6cc)}
+  .weather[data-theme="rain"]{background:linear-gradient(135deg,#46587e,#6f86b3)}
+  .weather[data-theme="snow"]{background:linear-gradient(135deg,#8aa7d6,#cfe0f7);color:#14233f}
+  .weather[data-theme="hot"]{background:linear-gradient(135deg,#ff8a4c,#ffc65a)}
+  .weather[data-theme="cold"]{background:linear-gradient(135deg,#3d6fd6,#8fb8f4)}
+  .w-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .w-date{font-weight:700;font-size:1rem;opacity:.95}
+  .w-loc{font-size:.85rem;opacity:.85}
+  .w-icon{font-size:3.6rem;line-height:1}
+  .w-temp{font-size:3.4rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:10px}
+  .w-temp small{font-size:1.1rem;font-weight:600;opacity:.9;margin-left:6px}
+  .w-desc{font-size:1.05rem;font-weight:600;margin-top:2px}
+  .w-minmax{margin-top:4px;opacity:.95}
+  .times{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+  .times div{background:rgba(255,255,255,.2);border-radius:14px;padding:8px 4px;text-align:center;backdrop-filter:blur(4px)}
+  .times b{display:block;font-size:1.05rem}
+  .times span{font-size:.75rem;opacity:.9}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+  .stats div{background:rgba(255,255,255,.2);border-radius:14px;padding:8px 12px;font-size:.88rem;display:flex;justify-content:space-between}
+
+  /* 2. Outfit */
+  .sec-title{font-size:1.1rem;font-weight:800;margin-bottom:4px}
+  .headline{color:var(--primary);font-weight:700;margin-bottom:12px}
+  .badge{display:inline-block;background:var(--primary-soft);color:var(--primary);padding:4px 10px;border-radius:999px;font-size:.8rem;font-weight:700;margin-bottom:8px}
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cat{border:1px solid var(--line);border-radius:16px;padding:12px}
+  .cat h3{font-size:.8rem;color:var(--sub);margin-bottom:8px;font-weight:700}
+  .items{display:flex;flex-wrap:wrap;gap:6px}
+  .item{display:inline-flex;align-items:center;gap:4px;background:#f6f8fd;border-radius:10px;padding:6px 9px;font-size:.88rem;font-weight:600}
+  .item .ic{font-size:1.15rem}
+  .none{color:var(--sub);font-size:.88rem}
+  .extras{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+  .extras .item{background:#fff3ec;color:#c4501b}
+
+  /* 3. Explanation */
+  .explain p.lead{font-size:1.02rem;margin-bottom:12px}
+  .reasons{list-style:none;display:grid;gap:8px}
+  .reasons li{display:flex;gap:10px;background:#f6f8fd;border-radius:14px;padding:10px 12px;font-size:.93rem}
+  .reasons li .ri{font-size:1.2rem;flex:0 0 auto}
+
+  /* Table of guides */
+  details{margin-top:14px}
+  summary{cursor:pointer;font-weight:700;color:var(--sub);padding:6px 0}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:8px}
+  th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  tr.on td{background:var(--primary-soft);font-weight:700}
+
+  .loading{text-align:center;padding:60px 0;color:var(--sub)}
+  footer{margin-top:24px;text-align:center;font-size:.8rem;color:var(--sub)}
+  @media(max-width:420px){.cats{grid-template-columns:1fr}.w-temp{font-size:2.9rem}}
+
+  /* ---------- 다크 모드 ---------- */
+  html[data-mode="dark"]{
+    color-scheme:dark;
+    --bg:#0e1221; --card:#1a2036; --text:#e8ecf6; --sub:#9aa6c0; --line:#2c3654;
+    --primary:#5d83f7; --primary-soft:#27335c; --shadow:0 6px 24px rgba(0,0,0,.45);
+  }
+  html[data-mode="dark"] select,
+  html[data-mode="dark"] input[type=date],
+  html[data-mode="dark"] .btn,
+  html[data-mode="dark"] .seg button,
+  html[data-mode="dark"] .chip{background:#222a45}
+  html[data-mode="dark"] .btn:hover{background:var(--primary-soft)}
+  html[data-mode="dark"] .seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+  html[data-mode="dark"] .chip[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+  html[data-mode="dark"] .item,
+  html[data-mode="dark"] .reasons li{background:#232c4a}
+  html[data-mode="dark"] .extras .item{background:#42291f;color:#ffb48f}
+  html[data-mode="dark"] .banner{background:#3a2c14;border-color:#6b4d1f;color:#ffd49a}
+  html[data-mode="dark"] .weather{filter:brightness(.9)}
+  body,.panel,.cat,.item,.reasons li,select,input,.btn{transition:background-color .25s,border-color .25s,color .25s}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>👕 오늘 뭐 입지?</h1>
+      <p>날짜를 고르면 그날의 날씨와 알맞은 옷차림을 알려드려요.</p>
+    </div>
+    <button class="btn theme-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="다크 모드로 전환" title="다크 모드로 전환">🌙</button>
+  </header>
+
+  <section class="panel controls" aria-label="설정">
+    <div class="row">
+      <div>
+        <span class="label">지역</span>
+        <div class="row">
+          <select id="citySel" aria-label="지역 선택"></select>
+          <button class="btn" id="geoBtn" type="button">📍 내 위치</button>
+        </div>
+      </div>
+      <div>
+        <span class="label">체질</span>
+        <div class="seg" id="sens" role="group" aria-label="체질 선택">
+          <button type="button" data-v="-2" aria-pressed="false">추위 많이 탐</button>
+          <button type="button" data-v="0" aria-pressed="true">보통</button>
+          <button type="button" data-v="2" aria-pressed="false">더위 많이 탐</button>
+        </div>
+      </div>
+      <div>
+        <span class="label">날짜 직접 선택</span>
+        <input type="date" id="dateInput" aria-label="날짜 선택">
+      </div>
+    </div>
+    <div>
+      <span class="label">빠른 날짜 선택 (오늘~7일 후)</span>
+      <div class="dates" id="dates" role="group" aria-label="날짜 목록"></div>
+    </div>
+  </section>
+
+  <div id="banner" class="banner hidden"></div>
+  <div id="loading" class="loading">⏳ 날씨를 불러오는 중이에요…</div>
+
+  <main id="main" class="grid hidden">
+    <!-- 기능 1: 일기예보 -->
+    <section class="panel weather" id="weather" aria-live="polite"></section>
+
+    <!-- 기능 2: 옷차림 선택 -->
+    <section class="panel" id="outfit"></section>
+
+    <!-- 기능 3: 추천 설명 -->
+    <section class="panel explain span2" id="explain"></section>
+  </main>
+
+  <footer>날씨 데이터: Open-Meteo · 체감온도 기준 추천이며 개인차가 있을 수 있어요.</footer>
+</div>
+
+<script>
+/* ---------- 설정 데이터 ---------- */
+const CITIES = [
+  {n:'서울',lat:37.5665,lon:126.9780},{n:'부산',lat:35.1796,lon:129.0756},
+  {n:'인천',lat:37.4563,lon:126.7052},{n:'대구',lat:35.8714,lon:128.6014},
+  {n:'대전',lat:36.3504,lon:127.3845},{n:'광주',lat:35.1595,lon:126.8526},
+  {n:'울산',lat:35.5384,lon:129.3114},{n:'수원',lat:37.2636,lon:127.0286},
+  {n:'춘천',lat:37.8813,lon:127.7298},{n:'강릉',lat:37.7519,lon:128.8761},
+  {n:'전주',lat:35.8242,lon:127.1480},{n:'제주',lat:33.4996,lon:126.5312}
+];
+
+// 기온(체감) 구간별 옷차림 : min 이상이면 해당 구간
+const BANDS = [
+  {min:28,name:'무더위',head:'최대한 시원하고 가볍게!',
+   desc:'땀이 잘 마르고 통풍이 좋은 얇은 소재가 편해요.',
+   top:[['👕','민소매'],['👕','반팔 티셔츠'],['👚','린넨 셔츠']],
+   bottom:[['🩳','반바지'],['👗','원피스·짧은 치마']],
+   outer:[],acc:[['🧢','모자'],['🕶️','선글라스']]},
+  {min:23,name:'더운 날씨',head:'반팔 하나면 충분해요.',
+   desc:'낮에는 덥지만 실내 냉방이 강할 수 있어 얇은 걸칠 거리를 챙겨도 좋아요.',
+   top:[['👕','반팔 티셔츠'],['👔','얇은 셔츠'],['👚','블라우스']],
+   bottom:[['🩳','반바지'],['👖','얇은 면바지'],['👗','치마']],
+   outer:[],acc:[['🧢','모자']]},
+  {min:20,name:'포근한 날씨',head:'얇은 긴팔이나 가디건이 딱이에요.',
+   desc:'활동하기 좋은 온도예요. 얇은 긴팔에 가벼운 가디건을 더하면 충분해요.',
+   top:[['👕','긴팔 티셔츠'],['🧶','얇은 가디건'],['👔','셔츠']],
+   bottom:[['👖','청바지'],['👖','면바지'],['👖','슬랙스']],
+   outer:[['🧥','얇은 가디건']],acc:[]},
+  {min:17,name:'선선한 날씨',head:'맨투맨에 가벼운 겉옷을 걸쳐요.',
+   desc:'아침저녁으로 쌀쌀함이 느껴지기 시작하는 온도예요.',
+   top:[['👕','맨투맨'],['🧶','얇은 니트'],['👔','긴팔 셔츠']],
+   bottom:[['👖','청바지'],['👖','슬랙스']],
+   outer:[['🧥','가디건'],['🧥','얇은 바람막이']],acc:[]},
+  {min:12,name:'쌀쌀한 날씨',head:'자켓이나 야상 같은 겉옷이 필요해요.',
+   desc:'바람이 불면 꽤 춥게 느껴져요. 니트에 자켓 조합이 좋아요.',
+   top:[['🧶','니트'],['👕','맨투맨']],
+   bottom:[['👖','청바지'],['👖','두꺼운 면바지'],['🧦','스타킹']],
+   outer:[['🧥','자켓'],['🧥','야상'],['🧥','가디건']],acc:[]},
+  {min:9,name:'제법 추운 날씨',head:'트렌치코트·점퍼로 체온을 지켜요.',
+   desc:'한기가 뚜렷해서 겉옷은 필수예요. 안에는 니트나 두꺼운 상의를 입어요.',
+   top:[['🧶','니트'],['👕','두꺼운 맨투맨']],
+   bottom:[['👖','청바지'],['👖','기모 없는 두꺼운 바지']],
+   outer:[['🧥','트렌치코트'],['🧥','점퍼'],['🧥','야상']],acc:[['🧣','가벼운 스카프']]},
+  {min:5,name:'추운 날씨',head:'코트에 히트텍까지 챙겨요.',
+   desc:'본격적인 추위예요. 안쪽에 발열 내의를 입고 두꺼운 코트를 걸치세요.',
+   top:[['🧶','니트'],['👕','히트텍(발열 내의)']],
+   bottom:[['👖','기모 바지'],['🧦','레깅스']],
+   outer:[['🧥','울 코트'],['🧥','가죽 자켓']],acc:[['🧣','스카프']]},
+  {min:0,name:'매우 추운 날씨',head:'패딩과 목도리로 단단히 무장!',
+   desc:'찬 바람이 피부에 닿지 않도록 목·손을 꼭 감싸세요.',
+   top:[['🧶','두꺼운 니트'],['👕','히트텍']],
+   bottom:[['👖','기모 바지'],['🧦','기모 레깅스']],
+   outer:[['🧥','패딩'],['🧥','두꺼운 코트']],acc:[['🧣','목도리'],['🧤','장갑']]},
+  {min:-99,name:'한파',head:'가장 따뜻한 옷을 겹쳐 입어요.',
+   desc:'동상·저체온을 조심해야 하는 날이에요. 노출 부위를 최소화하세요.',
+   top:[['🧶','두꺼운 니트'],['👕','내복·히트텍']],
+   bottom:[['👖','기모 바지'],['🩲','내복']],
+   outer:[['🧥','롱패딩']],acc:[['🧣','목도리'],['🧤','장갑'],['🎧','귀마개'],['🔥','핫팩']]}
+];
+
+const WMO = (c)=>{
+  if(c===0) return {t:'맑음',e:'☀️',k:'clear'};
+  if(c===1||c===2) return {t:'대체로 맑음',e:'🌤️',k:'clear'};
+  if(c===3) return {t:'흐림',e:'☁️',k:'cloud'};
+  if(c===45||c===48) return {t:'안개',e:'🌫️',k:'cloud'};
+  if(c>=51&&c<=57) return {t:'이슬비',e:'🌦️',k:'rain'};
+  if(c>=61&&c<=67) return {t:'비',e:'🌧️',k:'rain'};
+  if(c>=71&&c<=77) return {t:'눈',e:'❄️',k:'snow'};
+  if(c>=80&&c<=82) return {t:'소나기',e:'🌦️',k:'rain'};
+  if(c===85||c===86) return {t:'눈 소나기',e:'🌨️',k:'snow'};
+  if(c>=95) return {t:'뇌우',e:'⛈️',k:'rain'};
+  return {t:'알 수 없음',e:'❔',k:'cloud'};
+};
+
+/* ---------- 상태 ---------- */
+const $ = id => document.getElementById(id);
+const DOW = ['일','월','화','수','목','금','토'];
+const state = {
+  loc: JSON.parse(localStorage.getItem('loc')||'null') || {...CITIES[0]},
+  sens: Number(localStorage.getItem('sens')||0),
+  days: [], sel: 0, selDate: null, demo:false
+};
+
+/* ---------- 유틸 ---------- */
+const r = n => Math.round(n);
+const pad = n => String(n).padStart(2,'0');
+function parseDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function dayLabel(s,i){
+  const d=parseDate(s);
+  if(i===0) return '오늘'; if(i===1) return '내일'; if(i===2) return '모레';
+  return DOW[d.getDay()]+'요일';
+}
+function fullDate(s){const d=parseDate(s);return `${d.getMonth()+1}월 ${d.getDate()}일(${DOW[d.getDay()]})`}
+function pickBand(t){return BANDS.find(b=>t>=b.min)}
+
+/* ---------- 기능 1: 일기예보 데이터 ---------- */
+async function fetchWeather(){
+  const {lat,lon}=state.loc;
+  const url='https://api.open-meteo.com/v1/forecast'
+   +`?latitude=${lat}&longitude=${lon}`
+   +'&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,uv_index_max'
+   +'&hourly=temperature_2m,apparent_temperature'
+   +'&wind_speed_unit=ms&timezone=auto&forecast_days=8';
+  const res=await fetch(url);
+  if(!res.ok) throw new Error('API error');
+  const j=await res.json();
+  const hr=(date,h)=>{
+    const k=j.hourly.time.indexOf(`${date}T${pad(h)}:00`);
+    return k<0?null:{t:j.hourly.temperature_2m[k],f:j.hourly.apparent_temperature[k]};
+  };
+  return j.daily.time.map((date,i)=>({
+    date, code:j.daily.weather_code[i],
+    tmax:j.daily.temperature_2m_max[i], tmin:j.daily.temperature_2m_min[i],
+    fmax:j.daily.apparent_temperature_max[i], fmin:j.daily.apparent_temperature_min[i],
+    pop:j.daily.precipitation_probability_max[i]??0,
+    rain:j.daily.precipitation_sum[i]??0,
+    wind:j.daily.wind_speed_10m_max[i]??0,
+    uv:j.daily.uv_index_max[i]??0,
+    h9:hr(date,9),h15:hr(date,15),h21:hr(date,21)
+  }));
+}
+
+// 네트워크가 안 될 때 보여줄 예시 데이터
+function demoDays(){
+  const avg=[-2,1,6,13,18,22,25,26,21,14,7,0];
+  const codes=[0,1,3,61,0,2,71,3];
+  const out=[]; const now=new Date();
+  for(let i=0;i<8;i++){
+    const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+    const m=avg[d.getMonth()]+Math.sin(i*1.3)*2;
+    const date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const code=m<1?(i%3===0?71:3):codes[i];
+    const mk=t=>({t,f:t-1});
+    out.push({date,code,tmax:m+5,tmin:m-5,fmax:m+4,fmin:m-6,
+      pop:code>=61?70:20,rain:code>=61?6:0,wind:3+i%3*2,uv:m>15?6:2,
+      h9:mk(m-3),h15:mk(m+5),h21:mk(m-1)});
+  }
+  return out;
+}
+
+/* ---------- 기능 2: 옷차림 선택 로직 ---------- */
+function recommend(day){
+  const base = day.fmax*0.6 + day.fmin*0.4;       // 낮 시간 비중을 높인 체감온도
+  const eff  = base + state.sens;                  // 체질 보정
+  const band = pickBand(eff);
+  const range = day.tmax - day.tmin;
+  const w = WMO(day.code);
+  const extras=[]; const reasons=[];
+
+  reasons.push({i:'🌡️',t:`체감온도 약 <b>${r(base)}°C</b>${state.sens?` (체질 보정 ${state.sens>0?'+':''}${state.sens}° 반영 → <b>${r(eff)}°C</b>)`:''} 기준으로 <b>'${band.name}'</b> 구간에 해당해요. ${band.desc}`});
+
+  if(range>=10){
+    extras.push(['🧥','벗고 입기 쉬운 겉옷']);
+    reasons.push({i:'↕️',t:`하루 기온 차이가 <b>${r(range)}°C</b>로 커요. 아침·저녁엔 쌀쌀하고 낮엔 더우니 <b>겹쳐 입고 낮에 벗을 수 있게</b> 준비하세요.`});
+  }
+  const snow = w.k==='snow';
+  if(snow){
+    extras.push(['👢','미끄럼 방지 신발'],['🧤','장갑'],['☂️','우산']);
+    reasons.push({i:'❄️',t:'눈 예보가 있어요. 길이 미끄러울 수 있으니 <b>바닥이 미끄럽지 않은 신발</b>과 방한 소품을 챙기세요.'});
+  } else if(day.pop>=50 || day.rain>=3 || w.k==='rain'){
+    extras.push(['☂️','우산'],['🥾','방수 신발']);
+    reasons.push({i:'☔',t:`강수확률 <b>${r(day.pop)}%</b>${day.rain>0?`, 예상 강수량 ${day.rain.toFixed(1)}mm`:''}예요. <b>우산</b>을 챙기고 물에 강한 신발·마르기 쉬운 소재를 추천해요.`});
+  } else if(day.pop>=30){
+    extras.push(['☂️','접이식 우산']);
+    reasons.push({i:'🌂',t:`강수확률이 <b>${r(day.pop)}%</b>라 갑작스러운 비에 대비해 <b>접이식 우산</b>이 있으면 안심이에요.`});
+  }
+  if(day.wind>=7){
+    extras.push(['🧣','바람 막는 목 보호']);
+    if(eff>=12) extras.push(['🧥','바람막이']);
+    reasons.push({i:'💨',t:`최대 풍속이 <b>${day.wind.toFixed(1)}m/s</b>로 바람이 강해요. 체감온도가 더 낮아지니 <b>바람을 막아주는 겉옷</b>을 추천해요.`});
+  }
+  if(day.uv>=6 && eff>=15 && !snow){
+    extras.push(['🧴','선크림'],['🕶️','선글라스']);
+    reasons.push({i:'🌞',t:`자외선 지수가 <b>${r(day.uv)}</b>로 높아요. <b>선크림·선글라스·모자</b>로 피부를 보호하세요.`});
+  }
+  if(eff>=28){
+    reasons.push({i:'💧',t:'더위로 땀이 많이 나는 날이에요. 밝은 색, 통풍이 잘 되는 소재를 고르고 <b>수분 보충</b>도 잊지 마세요.'});
+  }
+  if(eff<0){
+    reasons.push({i:'🥶',t:'영하의 체감온도예요. 목·손·귀 등 <b>노출 부위를 감싸고</b> 가능하면 이동 시간을 줄이세요.'});
+  }
+  return {base,eff,band,w,extras,reasons,range};
+}
+
+/* ---------- 기능 3: 추천 설명 문장 ---------- */
+function buildLead(day,i,rec){
+  const {band,w,eff}=rec;
+  const when = i===0?'오늘':i===1?'내일':fullDate(day.date);
+  const outer = band.outer.length ? `겉옷으로는 <b>${band.outer.map(o=>o[1]).join(', ')}</b>` : '<b>별도의 겉옷 없이</b>';
+  const top = band.top.map(o=>o[1]).slice(0,2).join(' 또는 ');
+  const bottom = band.bottom.map(o=>o[1]).slice(0,2).join(' 또는 ');
+  const lastTxt = band.outer.length ? '을(를) 걸치는 것을 추천해요.' : ' 가볍게 입어도 괜찮아요.';
+  return `${when} ${state.loc.n}은(는) <b>${w.t}</b>, 최저 ${r(day.tmin)}° / 최고 ${r(day.tmax)}°예요. `
+    + `상의는 <b>${top}</b>, 하의는 <b>${bottom}</b>을(를) 고르고, ${outer}${lastTxt}`;
+}
+
+/* ---------- 렌더링 ---------- */
+function renderDates(){
+  $('dates').innerHTML = state.days.map((d,i)=>{
+    const w=WMO(d.code), dd=parseDate(d.date);
+    return `<button type="button" class="chip" data-i="${i}" aria-pressed="${i===state.sel}">
+      <div class="d">${dayLabel(d.date,i)}</div>
+      <div class="d">${dd.getMonth()+1}/${dd.getDate()}</div>
+      <div class="e">${w.e}</div>
+      <div class="t">${r(d.tmax)}° <small>${r(d.tmin)}°</small></div>
+    </button>`;
+  }).join('');
+  const inp=$('dateInput');
+  inp.min=state.days[0].date; inp.max=state.days[state.days.length-1].date;
+  inp.value=state.days[state.sel].date;
+  const active=$('dates').querySelector('[aria-pressed="true"]');
+  if(active) active.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
+}
+
+function renderWeather(day,i,rec){
+  const w=rec.w;
+  let theme = w.k==='rain'?'rain':w.k==='snow'?'snow':w.k==='cloud'?'cloud':'clear';
+  if(theme==='clear'){ if(rec.base>=26) theme='hot'; else if(rec.base<=5) theme='cold'; }
+  const el=$('weather'); el.dataset.theme=theme;
+  const t=(h)=>h?`${r(h.t)}°`:'-';
+  const avg=(day.tmax+day.tmin)/2;
+  el.innerHTML=`
+    <div class="w-top">
+      <div>
+        <div class="w-date">${fullDate(day.date)} · ${dayLabel(day.date,i)}</div>
+        <div class="w-loc">📍 ${state.loc.n}</div>
+      </div>
+      <div class="w-icon" aria-hidden="true">${w.e}</div>
+    </div>
+    <div class="w-temp">${r(avg)}°<small>체감 ${r(rec.base)}°</small></div>
+    <div class="w-desc">${w.t}</div>
+    <div class="w-minmax">최저 ${r(day.tmin)}° / 최고 ${r(day.tmax)}°</div>
+    <div class="times">
+      <div><span>🌅 아침 9시</span><b>${t(day.h9)}</b></div>
+      <div><span>☀️ 낮 3시</span><b>${t(day.h15)}</b></div>
+      <div><span>🌙 밤 9시</span><b>${t(day.h21)}</b></div>
+    </div>
+    <div class="stats">
+      <div><span>☔ 강수확률</span><b>${r(day.pop)}%</b></div>
+      <div><span>💨 풍속</span><b>${day.wind.toFixed(1)}m/s</b></div>
+      <div><span>🌞 자외선</span><b>${r(day.uv)}</b></div>
+      <div><span>🌧️ 강수량</span><b>${day.rain.toFixed(1)}mm</b></div>
+    </div>`;
+}
+
+function itemsHTML(list,emptyMsg){
+  if(!list.length) return `<span class="none">${emptyMsg}</span>`;
+  return `<div class="items">${list.map(([ic,n])=>`<span class="item"><span class="ic">${ic}</span>${n}</span>`).join('')}</div>`;
+}
+
+function renderOutfit(rec){
+  const b=rec.band;
+  const idx=BANDS.indexOf(b);
+  $('outfit').innerHTML=`
+    <span class="badge">${b.name}</span>
+    <h2 class="sec-title">추천 옷차림</h2>
+    <p class="headline">${b.head}</p>
+    <div class="cats">
+      <div class="cat"><h3>👕 상의</h3>${itemsHTML(b.top,'-')}</div>
+      <div class="cat"><h3>👖 하의</h3>${itemsHTML(b.bottom,'-')}</div>
+      <div class="cat"><h3>🧥 겉옷</h3>${itemsHTML(b.outer,'필요 없어요')}</div>
+      <div class="cat"><h3>🎒 소품</h3>${itemsHTML(b.acc,'따로 필요 없어요')}</div>
+    </div>
+    ${rec.extras.length?`<div class="extras"><h3 class="label">✨ 오늘의 추가 준비물</h3>${itemsHTML(rec.extras,'')}</div>`:''}
+    <details>
+      <summary>기온별 옷차림 기준표 보기</summary>
+      <table>
+        <thead><tr><th>체감온도</th><th>구간</th><th>대표 옷차림</th></tr></thead>
+        <tbody>${BANDS.map((x,k)=>{
+          const lo=x.min, hi=k===0?null:BANDS[k-1].min-1;
+          const range = k===0?`${lo}°C 이상`:(x.min===-99?`${BANDS[k-1].min-1}°C 이하`.replace(/^\d+/,'0미만').replace('0미만','0°C 미만').replace('°C 이하',''):`${lo}~${hi}°C`);
+          return `<tr class="${k===idx?'on':''}"><td>${range}</td><td>${x.name}</td><td>${[...x.outer,...x.top].slice(0,3).map(o=>o[1]).join(', ')}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </details>`;
+}
+
+function renderExplain(day,i,rec){
+  $('explain').innerHTML=`
+    <h2 class="sec-title">💬 이렇게 추천한 이유</h2>
+    <p class="lead">${buildLead(day,i,rec)}</p>
+    <ul class="reasons">${rec.reasons.map(x=>`<li><span class="ri">${x.i}</span><span>${x.t}</span></li>`).join('')}</ul>`;
+}
+
+function render(){
+  const day=state.days[state.sel]; if(!day) return;
+  state.selDate=day.date;
+  const rec=recommend(day);
+  renderDates(); renderWeather(day,state.sel,rec); renderOutfit(rec); renderExplain(day,state.sel,rec);
+}
+
+/* ---------- 로딩 & 이벤트 ---------- */
+async function load(){
+  $('loading').classList.remove('hidden'); $('main').classList.add('hidden');
+  const banner=$('banner');
+  try{
+    state.days=await fetchWeather(); state.demo=false; banner.classList.add('hidden');
+  }catch(e){
+    state.days=demoDays(); state.demo=true;
+    banner.textContent='⚠️ 실시간 날씨를 불러오지 못해 예시 데이터로 보여드리고 있어요. 인터넷 연결을 확인하고 다시 시도해 주세요.';
+    banner.classList.remove('hidden');
+  }
+  const k=state.days.findIndex(d=>d.date===state.selDate);
+  state.sel=k>=0?k:0;
+  $('loading').classList.add('hidden'); $('main').classList.remove('hidden');
+  render();
+}
+
+function initCities(){
+  const sel=$('citySel');
+  sel.innerHTML=CITIES.map((c,i)=>`<option value="${i}">${c.n}</option>`).join('')+'<option value="geo">📍 현재 위치</option>';
+  const k=CITIES.findIndex(c=>c.n===state.loc.n);
+  sel.value = k>=0 ? String(k) : 'geo';
+  sel.addEventListener('change',()=>{
+    if(sel.value==='geo'){ useGeo(); return; }
+    state.loc={...CITIES[Number(sel.value)]};
+    localStorage.setItem('loc',JSON.stringify(state.loc)); load();
+  });
+}
+function useGeo(){
+  if(!navigator.geolocation){alert('이 브라우저는 위치 기능을 지원하지 않아요.');return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    state.loc={n:'현재 위치',lat:pos.coords.latitude,lon:pos.coords.longitude};
+    localStorage.setItem('loc',JSON.stringify(state.loc));
+    $('citySel').value='geo'; load();
+  },()=>{
+    alert('위치 권한을 허용해 주세요. 지역 목록에서 직접 고를 수도 있어요.');
+    const k=CITIES.findIndex(c=>c.n===state.loc.n); $('citySel').value=k>=0?String(k):'0';
+  },{timeout:10000});
+}
+
+$('geoBtn').addEventListener('click',useGeo);
+$('dates').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b) return;
+  state.sel=Number(b.dataset.i); render();
+});
+$('dateInput').addEventListener('change',e=>{
+  const k=state.days.findIndex(d=>d.date===e.target.value);
+  if(k>=0){state.sel=k;render();}
+  else{alert('오늘부터 7일 후까지만 선택할 수 있어요.');e.target.value=state.days[state.sel].date;}
+});
+$('sens').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  state.sens=Number(b.dataset.v); localStorage.setItem('sens',state.sens);
+  document.querySelectorAll('#sens button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  render();
+});
+document.querySelectorAll('#sens button').forEach(x=>x.setAttribute('aria-pressed',String(Number(x.dataset.v)===state.sens)));
+
+/* ---------- 다크 모드 ---------- */
+function applyMode(m,save){
+  document.documentElement.dataset.mode=m;
+  const b=$('themeBtn'), dark=m==='dark';
+  b.textContent=dark?'☀️':'🌙';
+  b.setAttribute('aria-pressed',String(dark));
+  const msg=dark?'라이트 모드로 전환':'다크 모드로 전환';
+  b.setAttribute('aria-label',msg); b.title=msg;
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.content=dark?'#0e1221':'#4f7cff';
+  if(save){ try{localStorage.setItem('mode',m);}catch(e){} }
+}
+$('themeBtn').addEventListener('click',()=>{
+  applyMode(document.documentElement.dataset.mode==='dark'?'light':'dark',true);
+});
+applyMode(document.documentElement.dataset.mode||'light',false);
+// 직접 고르기 전에는 기기의 다크 모드 설정 변경을 따라감
+if(window.matchMedia){
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{
+    if(!localStorage.getItem('mode')) applyMode(e.matches?'dark':'light',false);
+  });
+}
+
+initCities();
+load();
+</script>
+</body>
+</html>
